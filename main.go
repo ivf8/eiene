@@ -14,15 +14,12 @@ import (
 
 // Runs a single line
 func run(line string, eieneErrors *eiene_errors.EieneErrors) {
-	_scanner := scanner.NewScanner(line, eieneErrors)
-	tokens := _scanner.ScanTokens()
+	tokens := scanner.NewScanner(line, eieneErrors).ScanTokens()
 
 	if !eieneErrors.HadError {
-		_parser := parser.NewParser(tokens)
-		cmds := _parser.Parse()
+		cmds := parser.NewParser(tokens).Parse()
 
-		_interpreter := interpreter.NewInterpreter(cmds, eieneErrors)
-		_interpreter.Interpret()
+		interpreter.NewInterpreter(cmds, eieneErrors).Interpret()
 	}
 }
 

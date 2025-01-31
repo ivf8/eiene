@@ -10,6 +10,8 @@ import (
 	"github.com/ivf8/simp-shell/pkg/token"
 )
 
+// &, | and ; characters. They are intepreted differently from other
+// characters unless if enclosed between quotes or in a comment.
 var (
 	SPECIAL_CHARS     = []rune{'&', '|', ';'}
 	SPECIAL_CHARS_MAP = SliceToMap(SPECIAL_CHARS)
@@ -27,8 +29,7 @@ type Scanner struct {
 	start   int           // Index to start indexing the current lexeme being scanned
 	current int           // Index of next character to be scanned
 
-	flags *Flags
-
+	flags       *Flags
 	eieneErrors *eiene_errors.EieneErrors
 }
 
@@ -213,7 +214,7 @@ func (s *Scanner) logicalOperator(tokenType token.TokenType) {
 func (s *Scanner) readLine() string {
 	reader, err := readline.New(">")
 	if err != nil {
-		color.Red("Error: ", err.Error())
+		color.Red(err.Error())
 		return ""
 	}
 	defer reader.Close()
@@ -229,7 +230,7 @@ func (s *Scanner) readLine() string {
 			s.eieneErrors.HadError = true
 
 		default:
-			color.Red("Error: ", err.Error())
+			color.Red(err.Error())
 		}
 
 		return line

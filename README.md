@@ -1,13 +1,13 @@
-# eiene
+# eiene :candy:
 
-A simple shell in GO :candy:
+A simple shell in GO.
 
 ## Building
 
 ### Requirements
-- [GO]('https://go.dev') version >=1.23.3
-- [cmake]('https://cmake.org/download') version >=3.30
-- [make]('https://www.gnu.org/software/make/#download')
+- [GO](https://go.dev "GO Lang") version >=1.23.3
+- [cmake](https://cmake.org/download "CMake") version >=3.30
+- [make](https://www.gnu.org/software/make/#download "Make")
 
 
 Clone this repository
