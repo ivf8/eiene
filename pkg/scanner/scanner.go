@@ -114,7 +114,7 @@ func (s *Scanner) scanToken() {
 			s.advance()
 		}
 
-	// Forward slash - Escape next character or continue reading command in next line
+	// Back slash - Escape next character or continue reading command in next line
 	case '\\':
 		_continueReading := false
 		if s.isAtEnd() {
@@ -126,7 +126,7 @@ func (s *Scanner) scanToken() {
 
 		// Prompt for command continuation if the command ends with \
 		if s.peek() == rune(0) && _continueReading {
-			line := s.readLine()
+			line := s.readLine(">")
 			if len(line) > 0 {
 				s.source = append(s.source, []rune(line)...)
 			}
@@ -180,13 +180,35 @@ func (s *Scanner) logicalOperator(tokenType token.TokenType) {
 		_current = s.consumeWhitespace()
 	}
 
-	// TODO: If a line ends with && or ||, then the prompt should
-	// continue in the next line and be concatenated.
+	// Prevent reading out of s.source when _current is >= len(s.source)
+	_isSpecialCharacter := false
+	if _current < len(s.source) {
+		_isSpecialCharacter = SPECIAL_CHARS_MAP[s.source[_current]]
+	}
 
 	// OK
-	if !SPECIAL_CHARS_MAP[s.peek()] && !SPECIAL_CHARS_MAP[s.source[_current]] {
+	if !SPECIAL_CHARS_MAP[s.peek()] && !_isSpecialCharacter {
 		s.addToken(tokenType)
 		s.flags.newCmd = true
+
+		// Continue reading if the command ends in && or ||
+		if s.peek() == rune(0) {
+			prompt := "cmdand>"
+			if tokenType == token.OR {
+				prompt = "cmdor>"
+			}
+
+			// Exit if ^C is pressed or a non-empty command is entered
+			for !s.eieneErrors.HadError {
+				// Trim space and tabs to prevent whitespace only commands
+				line := strings.Trim(s.readLine(prompt), " \t")
+				if len(line) > 0 {
+					s.source = append(s.source, []rune(line)...)
+					break
+				}
+			}
+		}
+
 		return
 	}
 
@@ -211,8 +233,8 @@ func (s *Scanner) logicalOperator(tokenType token.TokenType) {
 	s.eieneErrors.ParseError(error_chars)
 }
 
-func (s *Scanner) readLine() string {
-	reader, err := readline.New(">")
+func (s *Scanner) readLine(prompt string) string {
+	reader, err := readline.New(prompt)
 	if err != nil {
 		color.Red(err.Error())
 		return ""
