@@ -1,11 +1,8 @@
 package scanner
 
 import (
-	"io"
 	"strings"
 
-	"github.com/chzyer/readline"
-	"github.com/fatih/color"
 	"github.com/ivf8/simp-shell/pkg/eiene_errors"
 	"github.com/ivf8/simp-shell/pkg/token"
 )
@@ -23,6 +20,9 @@ type Flags struct {
 	newCmd     bool // If true next token is the program name
 }
 
+// Function for continuing to read a command from the cmd line.
+type ReaderFunc func(prompt string) (string, error)
+
 type Scanner struct {
 	source  []rune        // Runes from the source string
 	Tokens  []token.Token // Scanned tokens
@@ -31,9 +31,11 @@ type Scanner struct {
 
 	flags       *Flags
 	eieneErrors *eiene_errors.EieneErrors
+
+	reader ReaderFunc // Function for reading a command that is continued
 }
 
-func NewScanner(source string, e *eiene_errors.EieneErrors) *Scanner {
+func NewScanner(source string, e *eiene_errors.EieneErrors, reader ReaderFunc) *Scanner {
 	return &Scanner{
 		source:      []rune(source),
 		Tokens:      []token.Token{},
@@ -46,6 +48,8 @@ func NewScanner(source string, e *eiene_errors.EieneErrors) *Scanner {
 			spaceFound: false,
 			newCmd:     true,
 		},
+
+		reader: reader,
 	}
 }
 
@@ -126,7 +130,11 @@ func (s *Scanner) scanToken() {
 
 		// Prompt for command continuation if the command ends with \
 		if s.peek() == rune(0) && _continueReading {
-			line := s.readLine(">")
+			line, err := s.reader(">")
+			if err != nil {
+				s.eieneErrors.HadError = true
+				s.eieneErrors.Errors = append(s.eieneErrors.Errors, err.Error())
+			}
 			if len(line) > 0 {
 				s.source = append(s.source, []rune(line)...)
 			}
@@ -200,8 +208,14 @@ func (s *Scanner) logicalOperator(tokenType token.TokenType) {
 
 			// Exit if ^C is pressed or a non-empty command is entered
 			for !s.eieneErrors.HadError {
+				line, err := s.reader(prompt)
+				if err != nil {
+					s.eieneErrors.HadError = true
+					s.eieneErrors.Errors = append(s.eieneErrors.Errors, err.Error())
+				}
+
 				// Trim space and tabs to prevent whitespace only commands
-				line := strings.Trim(s.readLine(prompt), " \t")
+				line = strings.Trim(line, " \t\r\n")
 				if len(line) > 0 {
 					s.source = append(s.source, []rune(line)...)
 					break
@@ -231,32 +245,6 @@ func (s *Scanner) logicalOperator(tokenType token.TokenType) {
 	}
 	error_chars := string(s.source[s.start:s.current])
 	s.eieneErrors.ParseError(error_chars)
-}
-
-func (s *Scanner) readLine(prompt string) string {
-	reader, err := readline.New(prompt)
-	if err != nil {
-		color.Red(err.Error())
-		return ""
-	}
-	defer reader.Close()
-
-	for {
-		line, err := reader.Readline()
-		switch err {
-		case nil:
-		case io.EOF: // ^D
-			continue
-
-		case readline.ErrInterrupt: // ^C
-			s.eieneErrors.HadError = true
-
-		default:
-			color.Red(err.Error())
-		}
-
-		return line
-	}
 }
 
 // Consumes whitespace from s.current to the next non-whitespace character.

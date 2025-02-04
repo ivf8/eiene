@@ -1,6 +1,7 @@
 package scanner_test
 
 import (
+	"errors"
 	"reflect"
 	"testing"
 
@@ -11,9 +12,47 @@ import (
 
 var EieneErrors = eiene_errors.NewEieneErrors(false)
 
+// Generates a reader function that returns the readValues one by one
+// each time it is called.
+func readerFuncGenerator(readValues []string) scanner.ReaderFunc {
+
+	c := make(chan string)
+
+	go func() {
+		defer close(c)
+
+		for _, readValue := range readValues {
+			c <- readValue
+		}
+	}()
+
+	return func(prompt string) (string, error) {
+
+		v := <-c
+
+		if v == "^C" {
+			return "", errors.New("^C pressed")
+		}
+
+		if v == "EOF" {
+			return "", errors.New("EOF")
+		}
+
+		return v, nil
+	}
+}
+
+// Scan tokens from commands that may span multiple lines.
+func scanTokensMultilineHelper(cmd string, reader scanner.ReaderFunc) []token.Token {
+	EieneErrors.ResetErrors()
+	_scanner := scanner.NewScanner(cmd, EieneErrors, reader)
+	return _scanner.ScanTokens()
+}
+
+// Scan tokens from single line commands
 func scanTokensHelper(cmd string) []token.Token {
 	EieneErrors.ResetErrors()
-	_scanner := scanner.NewScanner(cmd, EieneErrors)
+	_scanner := scanner.NewScanner(cmd, EieneErrors, readerFuncGenerator([]string{"EOF"}))
 	return _scanner.ScanTokens()
 }
 
@@ -88,6 +127,88 @@ func TestBothLogicalsInCommand(t *testing.T) {
 
 	if !reflect.DeepEqual(result, expected) {
 		t.Errorf("Scan('%s') got %v. Expected %v", cmd, result, expected)
+	}
+}
+
+func TestLogicalCommandContinuation(t *testing.T) {
+	tests := []struct {
+		cmd      string
+		reader   scanner.ReaderFunc
+		expected []token.Token
+	}{
+		{
+			"ls&&",
+			readerFuncGenerator([]string{"ls"}),
+			[]token.Token{
+				newToken(token.PROG_NAME, "ls"),
+				newToken(token.AND, "&&"),
+				newToken(token.PROG_NAME, "ls"),
+				newToken(token.EOF, ""),
+			},
+		},
+		{
+			"ls||",
+			readerFuncGenerator([]string{"cd"}),
+			[]token.Token{
+				newToken(token.PROG_NAME, "ls"),
+				newToken(token.OR, "||"),
+				newToken(token.PROG_NAME, "cd"),
+				newToken(token.EOF, ""),
+			},
+		},
+		{
+			"ls&&",
+			readerFuncGenerator([]string{"ls&&", "cd"}),
+			[]token.Token{
+				newToken(token.PROG_NAME, "ls"),
+				newToken(token.AND, "&&"),
+				newToken(token.PROG_NAME, "ls"),
+				newToken(token.AND, "&&"),
+				newToken(token.PROG_NAME, "cd"),
+				newToken(token.EOF, ""),
+			},
+		},
+		{
+			"ls&&",
+			readerFuncGenerator([]string{"ls&&", "cd||", "cd -"}),
+			[]token.Token{
+				newToken(token.PROG_NAME, "ls"),
+				newToken(token.AND, "&&"),
+				newToken(token.PROG_NAME, "ls"),
+				newToken(token.AND, "&&"),
+				newToken(token.PROG_NAME, "cd"),
+				newToken(token.OR, "||"),
+				newToken(token.PROG_NAME, "cd"),
+				newToken(token.ARG, "-"),
+				newToken(token.EOF, ""),
+			},
+		},
+		{
+			// space-only command is not valid
+			"ls&&",
+			readerFuncGenerator([]string{"  ", "   \t\r\n", "cd -"}),
+			[]token.Token{
+				newToken(token.PROG_NAME, "ls"),
+				newToken(token.AND, "&&"),
+				newToken(token.PROG_NAME, "cd"),
+				newToken(token.ARG, "-"),
+				newToken(token.EOF, ""),
+			},
+		},
+		{
+			// ^C stops the reading and tokens are nil
+			"ls&&",
+			readerFuncGenerator([]string{"ls&&", "^C"}),
+			nil,
+		},
+	}
+
+	for i, test := range tests {
+		result := scanTokensMultilineHelper(test.cmd, test.reader)
+
+		if !reflect.DeepEqual(result, test.expected) {
+			t.Errorf("[%d] Scan('%s') got %v. Expected %v", i, test.cmd, result, test.expected)
+		}
 	}
 }
 

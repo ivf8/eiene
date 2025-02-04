@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
 
@@ -12,9 +13,36 @@ import (
 	"github.com/ivf8/simp-shell/pkg/scanner"
 )
 
+// Reads a continued command
+func reader(prompt string) (string, error) {
+	reader, err := readline.New(prompt)
+	if err != nil {
+		color.Red(err.Error())
+		return "", nil
+	}
+	defer reader.Close()
+
+	for {
+		line, err := reader.Readline()
+		switch err {
+		case nil:
+		case io.EOF: // ^D
+			continue
+
+		case readline.ErrInterrupt: // ^C
+			return "", errors.New("reader: ^C pressed")
+
+		default:
+			color.Red(err.Error())
+		}
+
+		return line, nil
+	}
+}
+
 // Runs a single line
 func run(line string, eieneErrors *eiene_errors.EieneErrors) {
-	tokens := scanner.NewScanner(line, eieneErrors).ScanTokens()
+	tokens := scanner.NewScanner(line, eieneErrors, reader).ScanTokens()
 
 	if !eieneErrors.HadError {
 		cmds := parser.NewParser(tokens).Parse()
