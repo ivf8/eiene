@@ -267,10 +267,12 @@ func (s *Scanner) consumeWhitespace() int {
 func (s *Scanner) addToken(tokenType token.TokenType) {
 	value := strings.Trim(string(s.source[s.start:s.current]), " ")
 
-	s.Tokens = append(s.Tokens, token.Token{
-		Type:   tokenType,
-		Lexeme: value,
-	})
+	if len(value) > 0 {
+		s.Tokens = append(s.Tokens, token.Token{
+			Type:   tokenType,
+			Lexeme: value,
+		})
+	}
 }
 
 // Updates the previous token after a \ is encountered and
