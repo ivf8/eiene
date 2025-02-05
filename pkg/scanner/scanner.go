@@ -137,6 +137,7 @@ func (s *Scanner) scanToken() {
 			}
 			if len(line) > 0 {
 				s.source = append(s.source, []rune(line)...)
+				s.current-- // Don't skip first character of next line, might be space
 			}
 		}
 
