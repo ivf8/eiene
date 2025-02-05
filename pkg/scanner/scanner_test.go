@@ -522,7 +522,6 @@ func TestSlashCanEscapeNextCharacter(t *testing.T) {
 		}},
 		{"cd \\   \\ls", []token.Token{
 			newToken(token.PROG_NAME, "cd"),
-			newToken(token.ARG, ""),
 			newToken(token.ARG, "ls"),
 			newToken(token.EOF, ""),
 		}},
@@ -537,6 +536,89 @@ func TestSlashCanEscapeNextCharacter(t *testing.T) {
 
 		if !reflect.DeepEqual(result, test.expected) {
 			t.Errorf("Scan('%s') got %v. Expected %v", test.cmd, result, test.expected)
+		}
+	}
+}
+
+func TestBackSlashAtEndOfCommandContinuesReading(t *testing.T) {
+	tests := []struct {
+		cmd      string
+		reader   scanner.ReaderFunc
+		expected []token.Token
+	}{
+		{
+			// Next line starts with space
+			"cd\\",
+			readerFuncGenerator([]string{" -"}),
+			[]token.Token{
+				newToken(token.PROG_NAME, "cd"),
+				newToken(token.ARG, "-"),
+				newToken(token.EOF, ""),
+			},
+		},
+		{
+			// No preciding space in the next line
+			"cd\\",
+			readerFuncGenerator([]string{"-"}),
+			[]token.Token{
+				newToken(token.PROG_NAME, "cd-"),
+				newToken(token.EOF, ""),
+			},
+		},
+		{
+			"cd  \\",
+			readerFuncGenerator([]string{" ; ls"}),
+			[]token.Token{
+				newToken(token.PROG_NAME, "cd"),
+				newToken(token.SEMICOLON, ";"),
+				newToken(token.PROG_NAME, "ls"),
+				newToken(token.EOF, ""),
+			},
+		},
+		{
+			"cd  \\",
+			readerFuncGenerator([]string{" && ls \\", " -al"}),
+			[]token.Token{
+				newToken(token.PROG_NAME, "cd"),
+				newToken(token.AND, "&&"),
+				newToken(token.PROG_NAME, "ls"),
+				newToken(token.ARG, "-al"),
+				newToken(token.EOF, ""),
+			},
+		},
+		{
+			// Commands that end with && or || are still continued
+			"cd  \\",
+			readerFuncGenerator([]string{" - &&", "ls ||", "clear"}),
+			[]token.Token{
+				newToken(token.PROG_NAME, "cd"),
+				newToken(token.ARG, "-"),
+				newToken(token.AND, "&&"),
+				newToken(token.PROG_NAME, "ls"),
+				newToken(token.OR, "||"),
+				newToken(token.PROG_NAME, "clear"),
+				newToken(token.EOF, ""),
+			},
+		},
+		{
+			// Commands with parsing error
+			"cd  \\",
+			readerFuncGenerator([]string{" ; &&&"}),
+			nil,
+		},
+		{
+			// ^C is pressed
+			"cd  \\",
+			readerFuncGenerator([]string{"^C"}),
+			nil,
+		},
+	}
+
+	for i, test := range tests {
+		result := scanTokensMultilineHelper(test.cmd, test.reader)
+
+		if !reflect.DeepEqual(result, test.expected) {
+			t.Errorf("[%d] Scan('%s') got %v. Expected %v", i, test.cmd, result, test.expected)
 		}
 	}
 }
