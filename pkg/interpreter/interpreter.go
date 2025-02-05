@@ -11,7 +11,7 @@ import (
 
 // Built in commands
 var (
-	BUILTINS     = []string{"exit"}
+	BUILTINS     = []string{"exit", "cd"}
 	BUILTINS_MAP = SliceToMap(BUILTINS)
 )
 
@@ -81,6 +81,12 @@ func (i *Interpreter) VisitPrimaryCmd(cmd *ast.PrimaryCmd) any {
 		switch cmd.ProgramName.Lexeme {
 		case "exit":
 			i.exit()
+
+		case "cd":
+			if len(args) == 0 {
+				args = append(args, "~")
+			}
+			i.cd(args[0])
 		}
 
 		return nil
@@ -103,6 +109,32 @@ func (i *Interpreter) VisitPrimaryCmd(cmd *ast.PrimaryCmd) any {
 // Execute exit builtin command
 func (i *Interpreter) exit() {
 	i.eieneErrors.ExitError()
+}
+
+// Execute cd builtin command
+func (i *Interpreter) cd(dir string) {
+	_dir := dir
+	switch dir {
+	case "-":
+		oldPwd, ok := os.LookupEnv("OLDPWD")
+		if !ok {
+			_dir = "."
+		} else {
+			_dir = oldPwd
+		}
+	case "~":
+		homeDir, _ := os.UserHomeDir()
+		_dir = homeDir
+	}
+
+	prevDir, _ := os.LookupEnv("PWD")
+	if err := os.Chdir(_dir); err != nil {
+		i.eieneErrors.InterpreterError(err.Error())
+	} else {
+		pwd, _ := os.Getwd()
+		os.Setenv("PWD", pwd)
+		os.Setenv("OLDPWD", prevDir)
+	}
 }
 
 // Creates a map from a slice
