@@ -89,6 +89,11 @@ func main() {
 
 		run(line, eieneErrors)
 
+		if eieneErrors.HadExitError {
+			fmt.Println("Exiting eiene. See you soon ;)")
+			break
+		}
+
 		eieneErrors.HadInterpreterError = false
 		eieneErrors.ResetErrors()
 	}

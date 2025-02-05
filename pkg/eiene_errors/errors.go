@@ -10,6 +10,7 @@ import (
 type EieneErrors struct {
 	HadError            bool
 	HadInterpreterError bool
+	HadExitError        bool
 	Errors              []string
 	printErrors         bool
 }
@@ -18,6 +19,7 @@ func NewEieneErrors(printErrors bool) *EieneErrors {
 	return &EieneErrors{
 		HadError:            false,
 		HadInterpreterError: false,
+		HadExitError:        false,
 		Errors:              []string{},
 		printErrors:         printErrors,
 	}
@@ -43,6 +45,12 @@ func (e *EieneErrors) InterpreterError(message string) {
 	e.HadInterpreterError = true
 	e.Errors = append(e.Errors, errorMessage)
 	e.Report(errorMessage)
+}
+
+// Error raised by the exit command
+func (e *EieneErrors) ExitError() {
+	e.HadExitError = true
+	e.HadError = true
 }
 
 func (e *EieneErrors) Report(message string) {
